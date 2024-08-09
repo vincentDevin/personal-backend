@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Connection } from 'mysql2';
+import { body, param, validationResult } from 'express-validator';
 import authenticateToken from '../middleware/authMiddleware';
 
 const blogRoutes = (db: Connection) => {
@@ -64,8 +65,14 @@ const blogRoutes = (db: Connection) => {
   });
 
   // Public route: Get an active page by its ID
-  router.get('/pages/:id', (req: Request, res: Response) => {
+  router.get('/pages/:id', param('id').isInt().withMessage('Invalid page ID'), (req: Request, res: Response) => {
     const id = db.escape(req.params.id);
+
+    // Handle validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
     const query = `
       SELECT
@@ -106,8 +113,14 @@ const blogRoutes = (db: Connection) => {
   });
 
   // Protected route: Get a page by its ID (active and non-active)
-  router.get('/pages/all/:id', authenticateToken, (req: Request, res: Response) => {
+  router.get('/pages/all/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), (req: Request, res: Response) => {
     const id = db.escape(req.params.id);
+
+    // Handle validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
     const query = `
       SELECT
@@ -153,56 +166,99 @@ const blogRoutes = (db: Connection) => {
   }
 
   // Protected route: Post a new blog page
-  router.post('/pages', authenticateToken, (req: Request, res: Response) => {
-    const { title, content, description, setActive, categoryId, path, publishedDate } = req.body;
-
-    const sanitizedContent = sanitizeHtml(content);
-    const formattedDate = new Date(publishedDate).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-
-    const query = `
-      INSERT INTO pages (path, title, content, description, categoryId, publishedDate, active)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    const values = [path, title, sanitizedContent, description, categoryId, formattedDate, setActive];
-
-    db.query(query, values, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
+  router.post('/pages', 
+    authenticateToken,
+    [
+      body('title').trim().notEmpty().withMessage('Title is required'),
+      body('content').trim().notEmpty().withMessage('Content is required'),
+      body('description').trim().notEmpty().withMessage('Description is required'),
+      body('setActive').isIn(['yes', 'no']).withMessage('Active status must be "yes" or "no"'),
+      body('categoryId').isInt().withMessage('Category ID must be an integer'),
+      body('path').trim().notEmpty().withMessage('Path is required'),
+      body('publishedDate').isISO8601().withMessage('Invalid date format'),
+    ],
+    (req: Request, res: Response) => {
+      // Handle validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
       }
-      res.json({ success: true, pageId: (results as any).insertId });
-    });
-  });
+
+      const { title, content, description, setActive, categoryId, path, publishedDate } = req.body;
+
+      const sanitizedContent = sanitizeHtml(content);
+      const formattedDate = new Date(publishedDate).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+
+      const query = `
+        INSERT INTO pages (path, title, content, description, categoryId, publishedDate, active)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      const values = [path, title, sanitizedContent, description, categoryId, formattedDate, setActive];
+
+      db.query(query, values, (err, results) => {
+        if (err) {
+          handleError(res, err.message);
+          return;
+        }
+        res.json({ success: true, pageId: (results as any).insertId });
+      });
+    }
+  );
 
   // Protected route: Update an existing blog page
-  router.put('/pages/:id', authenticateToken, (req: Request, res: Response) => {
-    const { title, content, description, setActive, categoryId, path, publishedDate } = req.body;
-    const id = db.escape(req.params.id);
-
-    const sanitizedContent = sanitizeHtml(content);
-    const formattedDate = new Date(publishedDate).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-
-    const query = `
-      UPDATE pages 
-      SET path = ?, title = ?, content = ?, description = ?, categoryId = ?, publishedDate = ?, active = ?
-      WHERE pageId = ${id}
-    `;
-
-    const values = [path, title, sanitizedContent, description, categoryId, formattedDate, setActive];
-
-    db.query(query, values, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
+  router.put('/pages/:id', 
+    authenticateToken,
+    [
+      param('id').isInt().withMessage('Invalid page ID'),
+      body('title').trim().notEmpty().withMessage('Title is required'),
+      body('content').trim().notEmpty().withMessage('Content is required'),
+      body('description').trim().notEmpty().withMessage('Description is required'),
+      body('setActive').isIn(['yes', 'no']).withMessage('Active status must be "yes" or "no"'),
+      body('categoryId').isInt().withMessage('Category ID must be an integer'),
+      body('path').trim().notEmpty().withMessage('Path is required'),
+      body('publishedDate').isISO8601().withMessage('Invalid date format'),
+    ],
+    (req: Request, res: Response) => {
+      // Handle validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
       }
-      res.json({ success: true });
-    });
-  });
+
+      const { title, content, description, setActive, categoryId, path, publishedDate } = req.body;
+      const id = db.escape(req.params.id);
+
+      const sanitizedContent = sanitizeHtml(content);
+      const formattedDate = new Date(publishedDate).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+
+      const query = `
+        UPDATE pages 
+        SET path = ?, title = ?, content = ?, description = ?, categoryId = ?, publishedDate = ?, active = ?
+        WHERE pageId = ${id}
+      `;
+
+      const values = [path, title, sanitizedContent, description, categoryId, formattedDate, setActive];
+
+      db.query(query, values, (err, results) => {
+        if (err) {
+          handleError(res, err.message);
+          return;
+        }
+        res.json({ success: true });
+      });
+    }
+  );
 
   // Protected route: Delete a page by its ID
-  router.delete('/pages/:id', authenticateToken, (req: Request, res: Response) => {
+  router.delete('/pages/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), (req: Request, res: Response) => {
     const id = db.escape(req.params.id);
+
+    // Handle validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
     const query = `DELETE FROM pages WHERE pageId = ${id}`;
 
