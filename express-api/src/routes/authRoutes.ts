@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt, { JwtPayload, VerifyErrors } from 'jsonwebtoken';
 import { Connection, RowDataPacket } from 'mysql2';
 import { body, validationResult } from 'express-validator';
+import axios from 'axios'; // To make HTTP requests
 
 const authRoutes = (db: Connection) => {
   const router = Router();
@@ -18,45 +19,65 @@ const authRoutes = (db: Connection) => {
     [
       body('username').trim().notEmpty().withMessage('Username is required'),
       body('password').trim().notEmpty().withMessage('Password is required'),
+      body('g-recaptcha-response').notEmpty().withMessage('reCAPTCHA is required') // Ensure reCAPTCHA token is present
     ],
-    (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
       // Handle validation errors
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { username, password } = req.body;
+      const { username, password, 'g-recaptcha-response': recaptchaToken } = req.body;
 
-      const query = "SELECT password FROM users WHERE username = ?";
-      db.query(query, [username], (err, results) => {
-        if (err) {
-          return handleError(res, err.message);
+      try {
+        // Verify the reCAPTCHA token with Google
+        const recaptchaSecret = process.env.CAPTCHA_SECRET as string; // Store your secret key in environment variable
+        const recaptchaResponse = await axios.post(`https://www.google.com/recaptcha/api/siteverify`, null, {
+          params: {
+            secret: recaptchaSecret,
+            response: recaptchaToken,
+          },
+        });
+
+        const { success } = recaptchaResponse.data;
+
+        if (!success) {
+          return res.status(400).json({ error: 'Failed reCAPTCHA verification' });
         }
 
-        // Explicitly cast results to RowDataPacket[]
-        const rows = results as RowDataPacket[];
-
-        if (rows.length === 0) {
-          return res.status(401).json({ error: 'Invalid username or password' });
-        }
-
-        const user = rows[0];
-        const hashedPassword = user.password;
-
-        bcrypt.compare(password, hashedPassword, (err, isMatch) => {
+        const query = "SELECT password FROM users WHERE username = ?";
+        db.query(query, [username], (err, results) => {
           if (err) {
             return handleError(res, err.message);
           }
 
-          if (!isMatch) {
+          // Explicitly cast results to RowDataPacket[]
+          const rows = results as RowDataPacket[];
+
+          if (rows.length === 0) {
             return res.status(401).json({ error: 'Invalid username or password' });
           }
 
-          const token = jwt.sign({ username }, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '1h' });
-          return res.json({ token });
+          const user = rows[0];
+          const hashedPassword = user.password;
+
+          bcrypt.compare(password, hashedPassword, (err, isMatch) => {
+            if (err) {
+              return handleError(res, err.message);
+            }
+
+            if (!isMatch) {
+              return res.status(401).json({ error: 'Invalid username or password' });
+            }
+
+            const token = jwt.sign({ username }, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '1h' });
+            return res.json({ token });
+          });
         });
-      });
+      } catch (error) {
+        return handleError(res, 'Error verifying reCAPTCHA');
+      }
     }
   );
 

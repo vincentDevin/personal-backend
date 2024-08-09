@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Connection } from 'mysql2';
 import { body, validationResult } from 'express-validator';
+import axios from 'axios'; // To make HTTP requests
 import authenticateToken from '../middleware/authMiddleware';
 
 const contactRoutes = (db: Connection) => {
@@ -47,30 +48,51 @@ const contactRoutes = (db: Connection) => {
         .trim()
         .notEmpty().withMessage('Comments are required')
         .isLength({ max: 500 }).withMessage('Comments cannot exceed 500 characters'),
+      body('g-recaptcha-response')
+        .notEmpty().withMessage('reCAPTCHA is required') // Ensure reCAPTCHA token is present
     ],
-    (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
       // Handle validation errors
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { firstName, lastName, email, comments } = req.body;
+      const { firstName, lastName, email, comments, 'g-recaptcha-response': recaptchaToken } = req.body;
 
-      const query = `
-        INSERT INTO contacts (firstName, lastName, email, comments)
-        VALUES (?, ?, ?, ?)
-      `;
+      try {
+        // Verify the reCAPTCHA token with Google
+        const recaptchaSecret = process.env.CAPTCHA_SECRET; // Replace with your secret key
+        const recaptchaResponse = await axios.post(`https://www.google.com/recaptcha/api/siteverify`, null, {
+          params: {
+            secret: recaptchaSecret,
+            response: recaptchaToken,
+          },
+        });
 
-      const values = [firstName, lastName, email, comments];
+        const { success } = recaptchaResponse.data;
 
-      db.query(query, values, (err, results) => {
-        if (err) {
-          handleError(res, err.message);
-          return;
+        if (!success) {
+          return res.status(400).json({ error: 'Failed reCAPTCHA verification' });
         }
-        res.status(200).json({ success: true, message: 'Contact information saved successfully' });
-      });
+
+        const query = `
+          INSERT INTO contacts (firstName, lastName, email, comments)
+          VALUES (?, ?, ?, ?)
+        `;
+
+        const values = [firstName, lastName, email, comments];
+
+        db.query(query, values, (err, results) => {
+          if (err) {
+            handleError(res, err.message);
+            return;
+          }
+          res.status(200).json({ success: true, message: 'Contact information saved successfully' });
+        });
+      } catch (error) {
+        handleError(res, 'Error verifying reCAPTCHA');
+      }
     }
   );
 
