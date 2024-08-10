@@ -4,16 +4,21 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_DATABASE_FILE: /run/secrets/mysql_database
+      MYSQL_USER_FILE: /run/secrets/mysql_user
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
       - backend_network
+    secrets:
+      - mysql_root_password
+      - mysql_database
+      - mysql_user
+      - mysql_password
     deploy:
       replicas: 1
       update_config:
@@ -34,13 +39,18 @@ services:
       - mysql
     environment:
       DB_HOST: mysql
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
+      DB_USER_FILE: /run/secrets/mysql_user
+      DB_PASSWORD_FILE: /run/secrets/mysql_password
+      DB_NAME_FILE: /run/secrets/mysql_database
+      ACCESS_TOKEN_SECRET_FILE: /run/secrets/access_token_secret
       NODE_ENV: production
     networks:
       - backend_network
+    secrets:
+      - mysql_user
+      - mysql_password
+      - mysql_database
+      - access_token_secret
     deploy:
       replicas: 2
       update_config:
@@ -53,13 +63,15 @@ services:
     image: phpmyadmin/phpmyadmin
     environment:
       PMA_HOST: mysql
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
     ports:
       - "8080:80"
     depends_on:
       - mysql
     networks:
       - backend_network
+    secrets:
+      - mysql_root_password
     deploy:
       replicas: 1
       update_config:
@@ -74,3 +86,15 @@ volumes:
 networks:
   backend_network:
     driver: overlay
+
+secrets:
+  mysql_root_password:
+    external: true
+  mysql_database:
+    external: true
+  mysql_user:
+    external: true
+  mysql_password:
+    external: true
+  access_token_secret:
+    external: true
