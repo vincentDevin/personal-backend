@@ -8,7 +8,7 @@ import contactRoutes from './routes/contactRoutes';
 dotenv.config();
 
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 
 // Middleware to parse JSON
 app.use(express.json());
@@ -24,9 +24,10 @@ const db = mysql.createConnection({
 db.connect((err) => {
   if (err) {
     console.error('Error connecting to MySQL:', err);
-    return;
+    process.exit(1); // Exit the process if the database connection fails
+  } else {
+    console.log('Connected to MySQL');
   }
-  console.log('Connected to MySQL');
 });
 
 // Public routes
@@ -35,8 +36,38 @@ app.use('/api', blogRoutes(db)); // Public routes for viewing pages
 // Contact routes
 app.use('/api', contactRoutes(db));
 
-
 // Start the server
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${port}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    db.end((err) => {
+      if (err) {
+        console.error('Error closing MySQL connection:', err);
+      } else {
+        console.log('MySQL connection closed');
+      }
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    db.end((err) => {
+      if (err) {
+        console.error('Error closing MySQL connection:', err);
+      } else {
+        console.log('MySQL connection closed');
+      }
+      process.exit(0);
+    });
+  });
 });
