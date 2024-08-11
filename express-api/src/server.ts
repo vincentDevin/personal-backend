@@ -1,5 +1,5 @@
 import express from 'express';
-import mysql from 'mysql2';
+import mysql from 'mysql2/promise'; // Use the promise-based API for pooling
 import dotenv from 'dotenv';
 import blogRoutes from './routes/blogRoutes';
 import authRoutes from './routes/authRoutes';
@@ -13,61 +13,52 @@ const port = Number(process.env.PORT) || 3000;
 // Middleware to parse JSON
 app.use(express.json());
 
-// MySQL connection setup
-const db = mysql.createConnection({
+// MySQL connection pool setup
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-});
-
-db.connect((err) => {
-  if (err) {
-    console.error('Error connecting to MySQL:', err);
-    process.exit(1); // Exit the process if the database connection fails
-  } else {
-    console.log('Connected to MySQL');
-  }
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
 // Public routes
-app.use('/api/auth', authRoutes(db));
-app.use('/api', blogRoutes(db)); // Public routes for viewing pages
-// Contact routes
-app.use('/api', contactRoutes(db));
+app.use('/api/auth', authRoutes(pool));
+app.use('/api', blogRoutes(pool));
+app.use('/api', contactRoutes(pool));
 
 // Start the server
 const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on http://0.0.0.0:${port}`);
+  // logMessage(`Server is running on http://0.0.0.0:${port}`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
+  // logMessage('SIGTERM signal received: closing HTTP server');
   server.close(() => {
-    console.log('HTTP server closed');
-    db.end((err) => {
-      if (err) {
-        console.error('Error closing MySQL connection:', err);
-      } else {
-        console.log('MySQL connection closed');
-      }
+    // logMessage('HTTP server closed');
+    pool.end().then(() => {
+      // logMessage('MySQL connection pool closed');
       process.exit(0);
+    }).catch(err => {
+      // logMessage('Error closing MySQL connection pool:', err);
+      process.exit(1);
     });
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
+  // logMessage('SIGINT signal received: closing HTTP server');
   server.close(() => {
-    console.log('HTTP server closed');
-    db.end((err) => {
-      if (err) {
-        console.error('Error closing MySQL connection:', err);
-      } else {
-        console.log('MySQL connection closed');
-      }
+    // logMessage('HTTP server closed');
+    pool.end().then(() => {
+      // logMessage('MySQL connection pool closed');
       process.exit(0);
+    }).catch(err => {
+      // logMessage('Error closing MySQL connection pool:', err);
+      process.exit(1);
     });
   });
 });

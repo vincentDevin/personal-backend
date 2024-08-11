@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { Connection } from 'mysql2';
+import { Pool } from 'mysql2/promise';
 import { body, validationResult } from 'express-validator';
 import axios from 'axios'; // To make HTTP requests
 import authenticateToken from '../middleware/authMiddleware';
 
-const contactRoutes = (db: Connection) => {
+const contactRoutes = (db: Pool) => {
   const router = Router();
 
   // Handle errors
@@ -13,18 +13,15 @@ const contactRoutes = (db: Connection) => {
   }
 
   // Protected route: Get all contact submissions
-  router.get('/contacts', authenticateToken, (req: Request, res: Response) => {
+  router.get('/contacts', authenticateToken, async (req: Request, res: Response) => {
     const query = "SELECT * FROM contacts ORDER BY created_at DESC";
 
-    db.query(query, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
-      }
-
-      const rows = results as any[];
+    try {
+      const [rows] = await db.query(query);
       res.json(rows);
-    });
+    } catch (err) {
+      handleError(res, (err as Error).message);
+    }
   });
 
   // Public route: Store contact form data with validation
@@ -52,7 +49,6 @@ const contactRoutes = (db: Connection) => {
         .notEmpty().withMessage('reCAPTCHA is required') // Ensure reCAPTCHA token is present
     ],
     async (req: Request, res: Response) => {
-      // Handle validation errors
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -83,15 +79,10 @@ const contactRoutes = (db: Connection) => {
 
         const values = [firstName, lastName, email, comments];
 
-        db.query(query, values, (err, results) => {
-          if (err) {
-            handleError(res, err.message);
-            return;
-          }
-          res.status(200).json({ success: true, message: 'Contact information saved successfully' });
-        });
+        await db.query(query, values);
+        res.status(200).json({ success: true, message: 'Contact information saved successfully' });
       } catch (error) {
-        handleError(res, 'Error verifying reCAPTCHA');
+        handleError(res, (error as Error).message);
       }
     }
   );

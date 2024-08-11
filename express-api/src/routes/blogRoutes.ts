@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { Connection } from 'mysql2';
+import { Pool } from 'mysql2/promise';
 import { body, param, validationResult } from 'express-validator';
 import authenticateToken from '../middleware/authMiddleware';
 
-const blogRoutes = (db: Connection) => {
+const blogRoutes = (db: Pool) => {
   const router = Router();
 
   // Handle errors
@@ -12,7 +12,7 @@ const blogRoutes = (db: Connection) => {
   }
 
   // Public route: Get a listing of all active blog pages
-  router.get('/pages', (req: Request, res: Response) => {
+  router.get('/pages', async (req: Request, res: Response) => {
     const query = `
       SELECT pageId, description, path, title, DATE_FORMAT(publishedDate, '%m/%e/%Y') as publishedDate, active 
       FROM pages 
@@ -20,14 +20,9 @@ const blogRoutes = (db: Connection) => {
       ORDER BY publishedDate DESC
     `;
 
-    db.query(query, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
-      }
-
-      const rows = results as any[];
-      res.json(rows.map(row => ({
+    try {
+      const [rows] = await db.query(query);
+      res.json((rows as any[]).map(row => ({
         pageId: row.pageId,
         path: row.path,
         title: row.title,
@@ -35,25 +30,22 @@ const blogRoutes = (db: Connection) => {
         active: row.active,
         description: row.description,
       })));
-    });
+    } catch (err) {
+      handleError(res, (err as Error).message);
+    }
   });
 
   // Protected route: Get a listing of all blog pages (active and non-active)
-  router.get('/pages/all', authenticateToken, (req: Request, res: Response) => {
+  router.get('/pages/all', authenticateToken, async (req: Request, res: Response) => {
     const query = `
       SELECT pageId, description, path, title, DATE_FORMAT(publishedDate, '%m/%e/%Y') as publishedDate, active 
       FROM pages 
       ORDER BY publishedDate DESC
     `;
 
-    db.query(query, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
-      }
-
-      const rows = results as any[];
-      res.json(rows.map(row => ({
+    try {
+      const [rows] = await db.query(query);
+      res.json((rows as any[]).map(row => ({
         pageId: row.pageId,
         path: row.path,
         title: row.title,
@@ -61,12 +53,14 @@ const blogRoutes = (db: Connection) => {
         active: row.active,
         description: row.description,
       })));
-    });
+    } catch (err) {
+      handleError(res, (err as Error).message);
+    }
   });
 
   // Public route: Get an active page by its ID
-  router.get('/pages/:id', param('id').isInt().withMessage('Invalid page ID'), (req: Request, res: Response) => {
-    const id = db.escape(req.params.id);
+  router.get('/pages/:id', param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
+    const id = req.params.id;
 
     // Handle validation errors
     const errors = validationResult(req);
@@ -82,19 +76,13 @@ const blogRoutes = (db: Connection) => {
         pages.active
       FROM pages
       INNER JOIN categories ON pages.categoryId = categories.categoryId
-      WHERE pageId = ${id} AND active = 'yes'
+      WHERE pageId = ? AND active = 'yes'
     `;
 
-    db.query(query, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
-      }
-
-      const rows = results as any[];
-
-      if (rows.length === 1) {
-        const row = rows[0];
+    try {
+      const [rows] = await db.query(query, [id]);
+      if ((rows as any[]).length === 1) {
+        const row = (rows as any[])[0];
         res.json({
           pageId: row.pageId,
           path: row.path,
@@ -109,12 +97,14 @@ const blogRoutes = (db: Connection) => {
       } else {
         res.status(404).json({ error: 'Page not found' });
       }
-    });
+    } catch (err) {
+      handleError(res, (err as Error).message);
+    }
   });
 
   // Protected route: Get a page by its ID (active and non-active)
-  router.get('/pages/all/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), (req: Request, res: Response) => {
-    const id = db.escape(req.params.id);
+  router.get('/pages/all/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
+    const id = req.params.id;
 
     // Handle validation errors
     const errors = validationResult(req);
@@ -130,19 +120,13 @@ const blogRoutes = (db: Connection) => {
         pages.active
       FROM pages
       INNER JOIN categories ON pages.categoryId = categories.categoryId
-      WHERE pageId = ${id}
+      WHERE pageId = ?
     `;
 
-    db.query(query, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
-      }
-
-      const rows = results as any[];
-
-      if (rows.length === 1) {
-        const row = rows[0];
+    try {
+      const [rows] = await db.query(query, [id]);
+      if ((rows as any[]).length === 1) {
+        const row = (rows as any[])[0];
         res.json({
           pageId: row.pageId,
           path: row.path,
@@ -157,7 +141,9 @@ const blogRoutes = (db: Connection) => {
       } else {
         res.status(404).json({ error: 'Page not found' });
       }
-    });
+    } catch (err) {
+      handleError(res, (err as Error).message);
+    }
   });
 
   // Sanitize HTML content
@@ -177,8 +163,7 @@ const blogRoutes = (db: Connection) => {
       body('path').trim().notEmpty().withMessage('Path is required'),
       body('publishedDate').isISO8601().withMessage('Invalid date format'),
     ],
-    (req: Request, res: Response) => {
-      // Handle validation errors
+    async (req: Request, res: Response) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -196,13 +181,12 @@ const blogRoutes = (db: Connection) => {
 
       const values = [path, title, sanitizedContent, description, categoryId, formattedDate, setActive];
 
-      db.query(query, values, (err, results) => {
-        if (err) {
-          handleError(res, err.message);
-          return;
-        }
+      try {
+        const [results] = await db.query(query, values);
         res.json({ success: true, pageId: (results as any).insertId });
-      });
+      } catch (err) {
+        handleError(res, (err as Error).message);
+      }
     }
   );
 
@@ -219,15 +203,14 @@ const blogRoutes = (db: Connection) => {
       body('path').trim().notEmpty().withMessage('Path is required'),
       body('publishedDate').isISO8601().withMessage('Invalid date format'),
     ],
-    (req: Request, res: Response) => {
-      // Handle validation errors
+    async (req: Request, res: Response) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
 
       const { title, content, description, setActive, categoryId, path, publishedDate } = req.body;
-      const id = db.escape(req.params.id);
+      const id = req.params.id;
 
       const sanitizedContent = sanitizeHtml(content);
       const formattedDate = new Date(publishedDate).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
@@ -235,40 +218,37 @@ const blogRoutes = (db: Connection) => {
       const query = `
         UPDATE pages 
         SET path = ?, title = ?, content = ?, description = ?, categoryId = ?, publishedDate = ?, active = ?
-        WHERE pageId = ${id}
+        WHERE pageId = ?
       `;
 
-      const values = [path, title, sanitizedContent, description, categoryId, formattedDate, setActive];
+      const values = [path, title, sanitizedContent, description, categoryId, formattedDate, setActive, id];
 
-      db.query(query, values, (err, results) => {
-        if (err) {
-          handleError(res, err.message);
-          return;
-        }
+      try {
+        await db.query(query, values);
         res.json({ success: true });
-      });
+      } catch (err) {
+        handleError(res, (err as Error).message);
+      }
     }
   );
 
   // Protected route: Delete a page by its ID
-  router.delete('/pages/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), (req: Request, res: Response) => {
-    const id = db.escape(req.params.id);
+  router.delete('/pages/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
+    const id = req.params.id;
 
-    // Handle validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const query = `DELETE FROM pages WHERE pageId = ${id}`;
+    const query = `DELETE FROM pages WHERE pageId = ?`;
 
-    db.query(query, (err, results) => {
-      if (err) {
-        handleError(res, err.message);
-        return;
-      }
+    try {
+      await db.query(query, [id]);
       res.json({ success: true });
-    });
+    } catch (err) {
+      handleError(res, (err as Error).message);
+    }
   });
 
   return router;
