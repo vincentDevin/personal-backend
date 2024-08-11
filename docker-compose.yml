@@ -33,6 +33,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
+      CAPTCHA_SECRET: ${CAPTCHA_SECRET}
     networks:
       - backend_network
 
