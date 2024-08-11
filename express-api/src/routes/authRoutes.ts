@@ -106,6 +106,7 @@ const authRoutes = (db: Connection) => {
   );
 
   // POST /create-user - Temporary route to create a new user
+  /*
   router.post(
     '/create-user',
     [
@@ -143,6 +144,7 @@ const authRoutes = (db: Connection) => {
       }
     }
   );
+  */
 
   return router;
 };
