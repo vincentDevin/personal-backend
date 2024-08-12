@@ -36,8 +36,8 @@ const blogRoutes = (db: Pool) => {
     }
   });
 
-  // Protected route: Get a listing of all blog pages (active and non-active)
-  router.get('/pages/all', authenticateToken, async (req: Request, res: Response) => {
+  // Protected route: Get a listing of all blog pages (active and non-active) for control panel
+  router.get('/control-panel/pages/all', authenticateToken, async (req: Request, res: Response) => {
     const query = `
       SELECT pageId, description, path, title, DATE_FORMAT(publishedDate, '%m/%e/%Y') as publishedDate, active 
       FROM pages 
@@ -102,8 +102,8 @@ const blogRoutes = (db: Pool) => {
     }
   });
 
-  // Protected route: Get a page by its ID (active and non-active)
-  router.get('/pages/all/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
+  // Protected route: Get a page by its ID (active and non-active) for control panel
+  router.get('/control-panel/pages/all/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
     const id = req.params.id;
 
     const errors = validationResult(req);
@@ -150,8 +150,8 @@ const blogRoutes = (db: Pool) => {
     return html.replace(/<\/?[^>]+(>|$)/g, ""); // Example of removing all HTML tags
   }
 
-  // Protected route: Post a new blog page
-  router.post('/pages', 
+  // Protected route: Post a new blog page from control panel
+  router.post('/control-panel/pages', 
     authenticateToken,
     [
       body('title').trim().notEmpty().withMessage('Title is required'),
@@ -191,8 +191,8 @@ const blogRoutes = (db: Pool) => {
     }
   );
 
-  // Protected route: Update an existing blog page
-  router.put('/pages/:id', 
+  // Protected route: Update an existing blog page from control panel
+  router.put('/control-panel/pages/:id', 
     authenticateToken,
     [
       param('id').isInt().withMessage('Invalid page ID'),
@@ -235,8 +235,8 @@ const blogRoutes = (db: Pool) => {
     }
   );
 
-  // Protected route: Delete a page by its ID
-  router.delete('/pages/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
+  // Protected route: Delete a page by its ID from control panel
+  router.delete('/control-panel/pages/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
     const id = req.params.id;
 
     const errors = validationResult(req);
