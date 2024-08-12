@@ -69,6 +69,22 @@ const authRoutes = (db: Pool) => {
     }
   );
 
+  // POST /verify - Token verification route
+  router.post('/verify', (req: Request, res: Response) => {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ valid: false, message: 'Token is required' });
+    }
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET as string, (err: VerifyErrors | null, decoded: JwtPayload | string | undefined) => {
+      if (err) {
+        return res.status(401).json({ valid: false, message: 'Invalid token' });
+      }
+      return res.status(200).json({ valid: true, user: decoded });
+    });
+  });
+
   return router;
 };
 
