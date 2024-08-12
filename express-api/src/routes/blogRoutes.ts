@@ -171,7 +171,7 @@ const blogRoutes = (db: Pool) => {
       const { title, content, description, setActive, categoryId, path, publishedDate } = req.body;
 
       const sanitizedContent = sanitizeHtml(content);
-      const formattedDate = new Date(publishedDate).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+      const formattedDate = new Date(publishedDate).toISOString().slice(0, 19).replace('T', ' ');
 
       const query = `
         INSERT INTO pages (path, title, content, description, categoryId, publishedDate, active)
