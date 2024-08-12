@@ -6,9 +6,10 @@ import authenticateToken from '../middleware/authMiddleware';
 const blogRoutes = (db: Pool) => {
   const router = Router();
 
-  // Handle errors
-  function handleError(res: Response, errMsg: string): void {
-    res.status(500).json({ error: errMsg });
+  // Handle errors with detailed logging
+  function handleError(res: Response, err: Error): void {
+    console.error('Error occurred:', err.message); // Log the error message for debugging
+    res.status(500).json({ error: err.message });
   }
 
   // Public route: Get a listing of all active blog pages
@@ -31,7 +32,7 @@ const blogRoutes = (db: Pool) => {
         description: row.description,
       })));
     } catch (err) {
-      handleError(res, (err as Error).message);
+      handleError(res, err as Error);
     }
   });
 
@@ -54,7 +55,7 @@ const blogRoutes = (db: Pool) => {
         description: row.description,
       })));
     } catch (err) {
-      handleError(res, (err as Error).message);
+      handleError(res, err as Error);
     }
   });
 
@@ -62,7 +63,6 @@ const blogRoutes = (db: Pool) => {
   router.get('/pages/:id', param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
     const id = req.params.id;
 
-    // Handle validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -98,7 +98,7 @@ const blogRoutes = (db: Pool) => {
         res.status(404).json({ error: 'Page not found' });
       }
     } catch (err) {
-      handleError(res, (err as Error).message);
+      handleError(res, err as Error);
     }
   });
 
@@ -106,7 +106,6 @@ const blogRoutes = (db: Pool) => {
   router.get('/pages/all/:id', authenticateToken, param('id').isInt().withMessage('Invalid page ID'), async (req: Request, res: Response) => {
     const id = req.params.id;
 
-    // Handle validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -142,7 +141,7 @@ const blogRoutes = (db: Pool) => {
         res.status(404).json({ error: 'Page not found' });
       }
     } catch (err) {
-      handleError(res, (err as Error).message);
+      handleError(res, err as Error);
     }
   });
 
@@ -185,7 +184,7 @@ const blogRoutes = (db: Pool) => {
         const [results] = await db.query(query, values);
         res.json({ success: true, pageId: (results as any).insertId });
       } catch (err) {
-        handleError(res, (err as Error).message);
+        handleError(res, err as Error);
       }
     }
   );
@@ -227,7 +226,7 @@ const blogRoutes = (db: Pool) => {
         await db.query(query, values);
         res.json({ success: true });
       } catch (err) {
-        handleError(res, (err as Error).message);
+        handleError(res, err as Error);
       }
     }
   );
@@ -247,7 +246,7 @@ const blogRoutes = (db: Pool) => {
       await db.query(query, [id]);
       res.json({ success: true });
     } catch (err) {
-      handleError(res, (err as Error).message);
+      handleError(res, err as Error);
     }
   });
 
