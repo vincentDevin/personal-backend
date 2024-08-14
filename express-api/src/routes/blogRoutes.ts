@@ -145,9 +145,17 @@ const blogRoutes = (db: Pool) => {
     }
   });
 
-  // Sanitize HTML content
   function sanitizeHtml(html: string): string {
-    return html.replace(/<\/?[^>]+(>|$)/g, ""); // Example of removing all HTML tags
+    // List of allowed tags
+    const allowedTags = ['<p>', '<h2>', '<h3>'];
+
+    // Create a regex pattern to match any tag that is not allowed
+    const tagPattern = /<\/?[^>]+(>|$)/g;
+
+    // Replace tags that are not in the allowed list
+    return html.replace(tagPattern, (tag) => {
+        return allowedTags.includes(tag.toLowerCase()) ? tag : '';
+    });
   }
 
   // Protected route: Post a new blog page from control panel
