@@ -148,7 +148,7 @@ const blogRoutes = (db: Pool) => {
   function sanitizeHtml(html: string): string {
     // List of allowed tags
     const allowedTags = ['<p>', '<h2>', '<h3>', '</p>', '</h2>', '</h3>', 
-      '<strong>', '</strong>', '<ul>', '<li>', '</li>', '</ul>'];
+      '<strong>', '</strong>', '<ul>', '<li>', '</li>', '</ul>', '<a>', '</a>'];
 
     // Create a regex pattern to match any tag that is not allowed
     const tagPattern = /<\/?[^>]+(>|$)/g;
