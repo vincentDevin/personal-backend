@@ -1,2 +1,3 @@
 express-api/node_modules
 .env
+mysql_data

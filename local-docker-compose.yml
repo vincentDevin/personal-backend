@@ -1,26 +1,25 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8.0
+    container_name: mysql_server
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: your_local_root_password
+      MYSQL_DATABASE: your_local_database
+      MYSQL_USER: your_local_user
+      MYSQL_PASSWORD: your_local_password
     ports:
       - "3306:3306"
     volumes:
-      - /path/to/your/ebs/mysql_data:/var/lib/mysql
+      - ./mysql_data:/var/lib/mysql
     networks:
       - backend_network
-    restart: always
 
   express-api:
     image: node:20
+    container_name: express_api
     working_dir: /usr/src/app
     volumes:
-      - /path/to/your/app/express-api:/usr/src/app
+      - ./express-api:/usr/src/app
     command: sh -c "npm install && npm run start"
     ports:
       - "3000:3000"
@@ -28,30 +27,29 @@ services:
       - mysql
     environment:
       DB_HOST: mysql
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
+      DB_USER: your_local_user
+      DB_PASSWORD: your_local_password
+      DB_NAME: your_local_database
+      ACCESS_TOKEN_SECRET: your_local_access_token_secret
+      CAPTCHA_SECRET: your_local_captcha_secret
     networks:
       - backend_network
-    restart: always
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
     environment:
       PMA_HOST: mysql
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: your_local_root_password
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - mysql
     networks:
       - backend_network
-    restart: always
 
 volumes:
   mysql_data:
 
 networks:
   backend_network:
-    external: true
